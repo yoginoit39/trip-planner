@@ -12,6 +12,8 @@ from planner import stream_itinerary
 
 load_dotenv()
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 app = FastAPI(title="AI Trip Planner")
 
@@ -24,6 +26,12 @@ app.add_middleware(
 
 _rate_limit_reset_at: float = 0
 
+# Supabase client (optional — gracefully skipped if not configured)
+supabase_client = None
+if SUPABASE_URL and SUPABASE_KEY:
+    from supabase import create_client
+    supabase_client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
 
 class TripRequest(BaseModel):
     destination: str
@@ -34,9 +42,36 @@ class TripRequest(BaseModel):
     dietary: List[str] = []
 
 
+class VisitRequest(BaseModel):
+    visitor_id: str
+
+
 @app.get("/")
 def root():
     return {"message": "AI Trip Planner API"}
+
+
+@app.post("/visit")
+def record_visit(req: VisitRequest):
+    if not supabase_client:
+        return {"unique_visitors": 0, "is_new": False}
+
+    existing = supabase_client.table("visitors").select("visitor_id").eq("visitor_id", req.visitor_id).execute()
+    is_new = len(existing.data) == 0
+
+    if is_new:
+        supabase_client.table("visitors").insert({"visitor_id": req.visitor_id}).execute()
+
+    count_result = supabase_client.table("visitors").select("visitor_id", count="exact").execute()
+    return {"unique_visitors": count_result.count, "is_new": is_new}
+
+
+@app.get("/stats")
+def get_stats():
+    if not supabase_client:
+        return {"unique_visitors": 0}
+    result = supabase_client.table("visitors").select("visitor_id", count="exact").execute()
+    return {"unique_visitors": result.count}
 
 
 @app.get("/rate-limit-status")

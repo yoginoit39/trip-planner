@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import TripForm from "./components/TripForm.jsx";
 import Itinerary from "./components/Itinerary.jsx";
 
@@ -33,6 +33,23 @@ export default function App() {
   const [tripInfo, setTripInfo] = useState(null);
   const [copied, setCopied] = useState(false);
   const [heroError, setHeroError] = useState(false);
+  const [visitorCount, setVisitorCount] = useState(null);
+
+  useEffect(() => {
+    let id = localStorage.getItem("visitor_id");
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem("visitor_id", id);
+    }
+    fetch(`${API}/visit`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ visitor_id: id }),
+    })
+      .then((r) => r.json())
+      .then((data) => setVisitorCount(data.unique_visitors))
+      .catch(() => {});
+  }, []);
 
   async function handleSubmit(formData) {
     setItinerary("");
@@ -113,6 +130,11 @@ export default function App() {
                 <span key={p.name} style={s.tag}>{p.flag} {p.name}</span>
               ))}
             </div>
+            {visitorCount !== null && (
+              <div style={s.visitorBadge}>
+                👥 {visitorCount.toLocaleString()} unique {visitorCount === 1 ? "visitor" : "visitors"}
+              </div>
+            )}
           </div>
         )}
 
@@ -270,6 +292,13 @@ const s = {
   emptySub: { fontSize: 15, color: "#6b7280", maxWidth: 480, lineHeight: 1.7 },
   tagRow: { display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", marginTop: 8 },
   tag: { padding: "7px 16px", background: "rgba(255,255,255,0.04)", border: "1px solid #1f2937", borderRadius: 24, fontSize: 13, color: "#9ca3af" },
+  visitorBadge: {
+    display: "flex", alignItems: "center", gap: 6,
+    padding: "6px 16px",
+    background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.2)",
+    borderRadius: 20, fontSize: 12, color: "#818cf8", fontWeight: 500,
+    marginTop: 4,
+  },
 
   // Error
   errorBox: {
